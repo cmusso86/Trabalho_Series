@@ -44,14 +44,28 @@ M3[[id2]]$description
 dados %>% mstl(lambda = NULL) %>% plot
 ```
 
-• Comente sobre o que foi observado na série e na decomposição.
-b. Escolha um modelo ARIMA adequado de forma manual.
-• O modelo selecionado deve ser baseado no que você visualizou na decomposição, testes
+- Comente sobre o que foi observado na série e na decomposição.
+
+
+## b. Escolha um modelo ARIMA adequado de forma manual.
+
+ -  O modelo selecionado deve ser baseado no que você visualizou na decomposição, testes
 estatísticos, gráficos ACF, gráficos PACF, critérios de parcimonia e resíduos;
-• Detalhe todo o procedimento da escolha do modelo;
-c. Análise de resíduos do modelo selecionado. • Inclua gráficos e testes estatísticos;
-• Comente sobre os resultados;
-d. Apresente a equação do modelo selecionado.
-• Utilize a estimava dos parâmetros. Exemplo: o modelo selecionado é um AR(1) definido como
+ - Detalhe todo o procedimento da escolha do modelo;
+ - Nao pode usar AutoArima
+ - Tem q fazer o algorito mostrado em sala. 
+
+
+## c. Análise de resíduos do modelo selecionado. 
+
+- Inclua gráficos e testes estatísticos;
+-  Comente sobre os resultados;
+
+## d. Apresente a equação do modelo selecionado.
+
+-  Utilize a estimava dos parâmetros. Exemplo: o modelo selecionado é um AR(1) definido como
 xt = 0.5xt−1 + εt, t = 1, 2, 3, . . ., em que {εt} é um processo i.i.d. Normal(0, 3);
-e. No final do relatório, inclua como um apêndice o código do R que foi utilizado.
+
+## e. No final do relatório, inclua como um apêndice o código do R que foi utilizado.
+
+- copia r os chucks com echo=T no fim
