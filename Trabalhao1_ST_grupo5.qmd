@@ -27,12 +27,14 @@ pacman::p_load(Mcomp, tidyverse, forecast)
 
 ```{r}
 data(M3)
-id <- 2342 
-dados <- M3[[id]]$x
+id1 <- 2342 
+id2 <- 1965
+dados <- M3[[id1]]$x
 
 plot(dados)
 
-M3[[id]]$description 
+M3[[id1]]$description 
+M3[[id2]]$description 
 ```
 
 
