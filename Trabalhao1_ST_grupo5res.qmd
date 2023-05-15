@@ -1,0 +1,184 @@
+---
+title: "Trabalho Prático 1"
+subtitle: "Séries Temporais - 1/2023" 
+author:
+  - Carolina Musso 18/0047850
+  - Gabriela Carneiro de Almeida 18/0120816
+  - Renan Menezes de Araujo
+format: 
+  pdf:
+    keep-tex: true
+    include-in-header:
+      text: |
+        \usepackage[auth-lg]{authblk}
+execute:
+  echo: false
+  message: false
+  warning: false
+---
+
+# Introdução
+
+```{r}
+pacman::p_load(Mcomp, tidyverse, forecast)
+```
+
+A pesquisa "Manufacturers' shipments, paper and allied products" (M3) fornece dados estatísticos mensais sobre as condições econômicas no setor de manufatura doméstica (empresas pequenas). A pesquisa mensura a atividade industrial atual e fornece uma indicação das tendências futuras desses tipos de negócios.
+
+
+
+```{r}
+data(M3)
+id1 <- 2342 
+id2 <- 1965
+dados <- M3[[id1]]$x
+
+plot(dados)
+
+M3[[id1]]$description 
+M3[[id2]]$description 
+```
+
+
+## a. Decomposição da série temporal via STL (ou MSTL).
+
+```{r}
+dados%>% stl(s.window = 12, t.window = NULL) %>% plot
+```
+
+Primeiramente a função stl() - "Seasonal an trending using Loess"- foi utilizada para decompor a série analisada. Como pode ser observado no gráfico, há uma tendencia crescente ao longo do tempo analisado e há, também, uma sazonalidade na série. Porém, a analise de resíduos mostra, aparentemente, que a decomposição utilizada não foi capaz de decompor a sazonalidade de uma maneira eficiente, já que ainda há indícios dessa sazonalidade nos resíduos.
+
+Uma alternativa é utilizar a função de decomposição mstl(), que é uma versão automatizada. Essa função é capaz de identificar multiplas sazonalidades.
+
+```{r}
+dados %>% mstl(lambda = "auto") %>% plot
+
+```
+O grafico da decomposição MSTL é bem parecido com o gráfico obtido na decomposição STL, indicando que não há multiplas sazonalidades. Ainda assim, os resíduos não parecem aleatorizados.
+
+
+## b. Escolha um modelo ARIMA adequado de forma manual.
+
+- Série "Manufacturers' shipments, paper and allied products"
+```{r}
+dados %>% plot()
+```
+```{r}
+tabela <- tibble(
+  var1 = dados %>% ndiffs(),
+  var2 = dados %>% diff() %>% nsdiffs()
+
+)
+
+tabela %>%
+  knitr::kable(
+    format = "latex",
+    align = "c",
+    booktabs = TRUE,
+    longtable = TRUE,
+    linesep = "",
+    col.names = c("Número de diferenciações simples (d)", "Número de diferenciações sazonais (D)"),
+    ) %>%
+  kableExtra::kable_styling(
+      position = "center",
+      latex_options = c("striped", "repeat_header"),
+      stripe_color = "gray!15")
+```
+
+Conforme observado na tabela acima, a série se torna estacionária com um diferenciação simples e necessita, também, de uma diferenciação sazonal, seguindo um modelo  
+
+\begin{align*}
+  SARIMA (p, 1, q) X (P, 1, Q)
+\end{align*}
+
+```{r}
+m <- dados %>% diff() %>% diff(lag = 12)
+par(mfrow=c(1,3))
+plot(m)
+acf(m, lag.max = 12*4)
+pacf(m, lag.max = 12*4)
+```
+```{r}
+melhor_AICc = Inf
+for(p in 0:3){
+  for(q in 0:3){
+    fit = Arima(m,order=c(p,1,q),seasonal=c(1,1,1))
+    if(fit$aicc < melhor_AICc){
+      melhor_AICc = fit$aicc
+      cat("p =",p,", q =",q,", AICc =", fit$aicc, "\n")
+    }
+  }
+}
+
+```
+Melhor configuração do modelo seria:
+
+\begin{align*}
+  SARIMA (2, 1, 1) X (1, 1, 1)
+\end{align*}
+
+```{r}
+fit = Arima(dados, order = c(2,1,1), seasonal = c(1,1,1))
+fit
+```
+
+
+
+## c. Análise de resíduos do modelo selecionado. 
+
+```{r}
+
+par(mfrow=c(1,2))
+E1 <- fit$residuals
+plot(E1);# resíduos com zeros na inicialização
+E <- fit$residuals %>% window(start=c(1985,2))
+plot(E);# resíduos sem a inicializaçã
+```
+
+```{r}
+par(mfrow=c(1,3))
+plot(E)
+qqnorm(E); qqline(E)
+acf(E, lag.max=12*5)
+```
+
+```{r}
+tabela2 <- tibble(
+  estac = tseries::kpss.test(E)$p.value,
+  indep = Box.test(E, lag=15, type = "Ljung-Bo")$p.value,
+  normlt = shapiro.test(E)$p.value
+
+)
+tabela2 %>%
+  knitr::kable(
+    format = "latex",
+    align = "c",
+    booktabs = TRUE,
+    longtable = TRUE,
+    linesep = "",
+    col.names = c("Teste KPSS - estacionariedade", "Teste Box-Ljung - independência", "Teste Shapiro-Wilk - normalidade"),
+    ) %>%
+  kableExtra::kable_styling(
+      position = "center",
+      latex_options = c("striped", "repeat_header"),
+      stripe_color = "gray!15")
+```
+O modelo ajustado cumpre os pré-requisitos de estacionariedade, independencia e normalidade, indicando que é um moledo que pode explicar a série.
+
+## d. Comparando o modelo obtido com a função auto.arima
+
+```{r}
+fit2 = auto.arima(dados)
+fit2
+```
+
+- comentar que os dois modelos ajustam bem, mas que pelo princípio da parcimônia, dese-se escolher o que tem menos parametrôs. 
+
+## d. Apresente a equação do modelo selecionado.
+
+-  Utilize a estimava dos parâmetros. Exemplo: o modelo selecionado é um AR(1) definido como
+xt = 0.5xt−1 + εt, t = 1, 2, 3, . . ., em que {εt} é um processo i.i.d. Normal(0, 3);
+
+## e. No final do relatório, inclua como um apêndice o código do R que foi utilizado.
+
+- copia r os chucks com echo=T no fim
