@@ -20,41 +20,69 @@ execute:
 # Introdução
 
 ```{r}
-pacman::p_load(Mcomp, tidyverse, forecast)
+pacman::p_load(Mcomp, tidyverse, forecast, flextable)
 ```
 
-A pesquisa "Manufacturers' shipments, paper and allied products" (M3) fornece dados estatísticos mensais sobre as condições econômicas no setor de manufatura doméstica (empresas pequenas). A pesquisa mensura a atividade industrial atual e fornece uma indicação das tendências futuras desses tipos de negócios.
+O pacote Mcomp disponibiliza milhares de séries de competições de previsão de séries temporais. A série apresentada nesse trabalho é a de id 2342, que se refe a uma pesquisa sobre "Manufacturers' shipments, paper and allied products", da comepetição M3. Ela fornece dados estatísticos mensais sobre as condições econômicas no setor de manufatura doméstica (empresas pequenas). A pesquisa mensura a atividade industrial atual e fornece uma indicação das tendências futuras desses tipos de negócios. Essa série mensal apresenta dados observados de Janeiro de 1983 a Agosto de 1992, e um horizonte de previsão de 18, projetando os resultados até Fevereiro de 1994. 
 
-
-
+Abaixo podemos observar os dados fornecidos nessa série, bem como seu gráfico, onde o horizonte de previsão aparece em vermelho. 
 ```{r}
 data(M3)
 id1 <- 2342 
-id2 <- 1965
-dados <- M3[[id1]]$x
+#id2 <- 1965
 
-plot(dados)
-
-M3[[id1]]$description 
-M3[[id2]]$description 
+serie <- M3[[id1]] # serie
+serie
+```
+```{r figura}
+#| fig-cap: "Série 2342"
+plot(serie)
 ```
 
 
 ## a. Decomposição da série temporal via STL (ou MSTL).
 
 ```{r}
-dados%>% stl(s.window = 12, t.window = NULL) %>% plot
+# obtendo os dados observados
+
+dados <- serie$x
+
+dados %>% stl(s.window = 7) %>%
+  plot()
+
+
 ```
 
-Primeiramente a função stl() - "Seasonal an trending using Loess"- foi utilizada para decompor a série analisada. Como pode ser observado no gráfico, há uma tendencia crescente ao longo do tempo analisado e há, também, uma sazonalidade na série. Porém, a analise de resíduos mostra, aparentemente, que a decomposição utilizada não foi capaz de decompor a sazonalidade de uma maneira eficiente, já que ainda há indícios dessa sazonalidade nos resíduos.
+Primeiramente, a função stl() - "Seasonal an trending using Loess"- foi utilizada para decompor a série analisada com o parâmetro s.window (janela sazonal) configurado para 7, como é recomendado por Cleveland et al. (1990). 
 
-Uma alternativa é utilizar a função de decomposição mstl(), que é uma versão automatizada. Essa função é capaz de identificar multiplas sazonalidades.
+
+No caso específico dessa série, ela já não aparentava ter comportamentos sazonais dinâmicos muito expressivos, assim, usar a função stl() com o parâmetro de janela "periodic" (para utilizar a média) ou simplesmente utilizando uma decomposição aditiva clássica da função `decompose()`, a tendência e parâmetro sazonais já são capturados de forma clara e semelhante ao stl(), como observado abaixo:
 
 ```{r}
-dados %>% mstl(lambda = "auto") %>% plot
+plot(decompose(dados))
+```
+
+Entretanto, apesar de tersido observado que a partir dessa janela sazonal o comportamento dos resíduos já melhorava (em contraste com rjanelas de 3, ou 5), aainda consideramos que havia um pouco de comportamento sazonal restante nos erros. Por esse motivo foi experimentado um outro tamanho de janela de tendência (t.window=7).
+
+```{r}
+dados %>% stl(s.window = 7, t.window =7) %>%
+  plot()
 
 ```
-O grafico da decomposição MSTL é bem parecido com o gráfico obtido na decomposição STL, indicando que não há multiplas sazonalidades. Ainda assim, os resíduos não parecem aleatorizados.
+
+Agora, consederamos que os resíduos estão mais bem comportados em relação à decompsição anterior. Nesse caso, notamos uma pequena parece haver sim, afinal, uma pequena dinamicidade nos termos sazonais, sendo que os termos mais recentes tem uma aplitude levemente maior. 
+
+Como pode ser observado no gráfico, há uma tendencia crescente clara na série, seguido de um platô a partir de 1990, já observando a série como um todo. Uma vez que vamos considerar esses resíduos como suficientemente aleatórios, vemos  que o componente de tendência foi bem capturado pela decomposição.
+
+Há também um padrão sazonal anual na série, aque apresenta três picos a cada ano, e como dito anteriormente, parece apresentar um leve aumento na amplitude quando ajustamos o cálculo para janela de tendência. 
+
+Uma alternativa à função stl() é a função mstl(), que aplica o mesmo método de forma automatizada, ou seja, sem a necessidade de setar previamente o tamanho da janela sazonal. Apesar de ele também automaticamente sugerir um tamanho para t.window(), consideramos que o melhor resultado surgiu quando ele foi configurado para 7, como discutimos anteriormente.   Outra vantagem da função mstl() será que ela função é capaz de identificar multiplas sazonalidades, caso ocorram.
+
+```{r}
+dados %>% mstl(lambda = "auto", t.window=7 ) %>% plot
+
+```
+O grafico da decomposição MSTL é bem parecido com o gráfico obtido na decomposição STL, e na decompsição aditiva clássica,  indicando que não há multiplas sazonalidades. 
 
 
 ## b. Escolha um modelo ARIMA adequado de forma manual.
