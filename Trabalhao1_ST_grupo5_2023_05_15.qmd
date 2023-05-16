@@ -12,7 +12,7 @@ format:
       text: |
         \usepackage[auth-lg]{authblk}
 execute:
-  echo: false
+  echo: true
   message: false
   warning: false
 ---
@@ -56,22 +56,22 @@ dados %>% stl(s.window = 7) %>%
 Primeiramente, a função stl() - "Seasonal an trending using Loess"- foi utilizada para decompor a série analisada com o parâmetro s.window (janela sazonal) configurado para 7, como é recomendado por Cleveland et al. (1990). 
 
 
-No caso específico dessa série, ela já não aparentava ter comportamentos sazonais dinâmicos muito expressivos, assim, usar a função stl() com o parâmetro de janela "periodic" (para utilizar a média) ou simplesmente utilizando uma decomposição aditiva clássica da função `decompose()`, a tendência e parâmetro sazonais já são capturados de forma clara.
+No caso específico dessa série, ela já não aparentava ter comportamentos sazonais dinâmicos muito expressivos. Assim, ao usar a função stl() com o parâmetro de janela "periodic" (para utilizar a média) ou simplesmente utilizando uma decomposição aditiva clássica da função `decompose()`, a tendência e parâmetro sazonais já estavam sendo capturados de forma clara.
 
-Entretanto, apesar de tersido observado que a partir dessa janela sazonal o comportamento dos resíduos já melhorava (em contraste com janelas de 3, ou 5), ainda consideramos que havia um pouco de comportamento sazonal restante nos erros. Por esse motivo foi experimentado um outro tamanho de janela de tendência (t.window=7).
+Entretanto, apesar de ter sido observado que a partir dessa janela sazonal o comportamento dos resíduos já melhorava (em contraste com janelas de 3, ou 5), ainda consideramos que havia um pouco de comportamento sazonal restante nos erros. Por esse motivo foram experimentados outros tamanhos de janela de tendência, chegando-se a um valor ideal de t.window=7.
 
 ```{r}
 dados %>% stl(s.window = 7, t.window =7) %>%
   plot()
 ```
 
-Agora, consideramos que os resíduos estão mais bem comportados em relação à decompsição anterior. Nesse caso, notamos uma pequena dinamicidade nos termos sazonais, sendo que os termos mais recentes tem uma amplitude levemente maior. 
+Agora, consideramos que os resíduos estão mais bem comportados em relação à decompsição anterior. Agora notamos uma pequena dinamicidade nos termos sazonais, sendo que os termos mais recentes tem uma amplitude levemente maior. 
 
-Como pode ser observado no gráfico, há uma tendência crescente clara na série, seguido de um platô a partir de 1990, já observando a série como um todo, antes da decomposição. Uma vez que vamos considerar esses resíduos da última decompsição como compatíveis a um ruido branco, vemos  que o componente de tendência foi bem capturado pela decomposição.
+Como pode ser observado no gráfico, há uma tendência crescente clara na série, seguido de um platô a partir de 1990, já observável mesmo antes da decomposição. Uma vez que vamos considerar esses resíduos da última decompsição como compatíveis a um ruido branco, vemos  que o componente de tendência foi bem capturado pela decomposição.
 
-Há também um padrão sazonal anual na série, aque apresenta três picos a cada ano e,  como dito anteriormente, parece apresentar um leve aumento na amplitude quando ajustamos o cálculo para janela de tendência. 
+Há também um padrão sazonal anual na série, aque apresenta três picos a cada ano e,  como dito anteriormente, parece apresentar um leve aumento na amplitude para os anos mais recentes. 
 
-Uma alternativa à função stl() é a função mstl(), que aplica o mesmo método de forma automatizada, ou seja, sem a necessidade de setar previamente o tamanho da janela sazonal. Apesar de ele também automaticamente sugerir um tamanho para t.window(), consideramos que o melhor resultado surgiu quando ele foi configurado o t.window também manualmente para 7, como discutimos anteriormente.   Outra vantagem da função mstl() será que ela função é capaz de identificar multiplas sazonalidades, caso ocorram.
+Uma alternativa à função stl() seria a função mstl(), que aplica o mesmo método de forma automatizada, ou seja, sem a necessidade de setar previamente o tamanho da janela sazonal. Apesar de ele também automaticamente sugerir um tamanho para t.window(), consideramos que o melhor resultado surgiu quando ele também foi configurado manualmente para `t.window= 7`, como discutimos anteriormente.   Outra vantagem da função mstl() é  que ela seria capaz de identificar multiplas sazonalidades, caso ocorressem.
 
 ```{r}
 dados %>% mstl(lambda = "auto", t.window=7 ) %>% plot
@@ -79,17 +79,18 @@ dados %>% mstl(lambda = "auto", t.window=7 ) %>% plot
 ```
 
 
-O grafico da decomposição MSTL indicou que não há multiplas sazonalidades, estando compatível com as interpretações apresentadas acima. 
+O gráfico da decomposição MSTL indicou que não há multiplas sazonalidades, estando compatível com as interpretações já apresentadas acima. 
 
 
 ## b. Escolha um modelo ARIMA adequado de forma manual.
 
-Primeiramente, vamos verificar se há necessidade de difenciações simples ou sazonais. 
+Primeiramente, vamos verificar se há necessidade de difenciações simples ou sazonais. Aplicando a função ndiffs() encontramos a necessidade de:
 
 ```{r}
 dados %>% ndiffs() 
 ```
 
+Observando o gráfico após essa diferenciação simples: 
 
 ```{r}
 
@@ -103,14 +104,14 @@ pacf(dif_simples , lag.max = 12*4)
 
 
 
-Notamos que após a diferenciação simples ainda há evidência de muita autocorrelação sazonal.
+Notamos que após essaa diferenciação simples ainda há evidência de muita autocorrelação nos termos sazonais.
+
+Ou seja, o modelo ainda não é estacionário, e não podemos analisar esses gráficos para encontrar a ordem do modelo. Assim, procede-se com a busca pelo número de diferenciações necessárias. 
 
 ```{r}
 dif_sazonal <- dif_simples %>% nsdiffs()
-
+dif_sazonal
 ```
-
-Ou seja, o modelo ainda não é estacionário, e não podemos analisar esses gráficos para encontrar a ordem do modelo. Assim, procede-se com a busca pelo número de diferenciações necessárias. 
 
 Resumindo então, conforme observado na tabela abaixo, a série se torna estacionária com um diferenciação simples e necessita, também, de uma diferenciação sazonal.
 
@@ -154,11 +155,11 @@ pacf(m, lag.max = 12*4)
 ```
 
 
-Olhando primeiramente os termos sazonais, os termos sazoinais parecem ter uma quebra na ordem 1 no ACF e um decaimento mais amortizado no PACF, o que caracterizaria um padrão de médias móveis para o modelo sazonal, ou seja com P=0, 1, Q=1. 
+Olhando primeiramente os termos sazonais, eles parecem ter uma quebra na ordem 1 no ACF e um decaimento mais amortizado no PACF, o que caracterizaria um padrão de médias móveis para o modelo sazonal, ou seja com P=0, 1, Q=1. 
 
-Já a parte simples parece também seguir um padrão mais póximo ao MA (em vez de um AR ou ARMA) entretanto o padrão das quebras e decaimentos não está muito claro.  Por esse motivo, para a busca do melhor modelo vamos fixar, d, D, P e Q mas vamos testar valores para p e q. 
+Já a parte simples parece também seguir um padrão mais póximo ao MA (em comparação a um AR ou ARMA). Entretanto o padrão das quebras e decaimentos não está muito claro.  Por esse motivo, para a busca do melhor modelo vamos fixar, d, D, P e Q mas vamos testar valores para p e q. 
 
-Testamos então combinaç˜pes de p e q variando de 0 a 3. 
+Testamos então combinações de p e q variando de 0 a 3. 
 ```{r}
 melhor_AICc = Inf
 for(p in 0:3){
@@ -174,13 +175,13 @@ for(p in 0:3){
 ```
 
 
-Melhor configuração do modelo seria:
+Melhor menor valor do critério de informação de Akaike encontrado foi paraapresentado para a p=0 e q=2. Assim, o modelo escolhido é:
 
 \begin{align*}
   SARIMA (0, 1, 2) X (0, 1, 1)
 \end{align*}
 
-que apresentou o menor AIC corrigido, de 1144,458.
+que apresentou o AIC corrigido de 1144,458.
 
 Procedemos então com o ajuste do modelo selecionado para obtenção dos parâmetros.
 
@@ -194,7 +195,6 @@ fit
 
 ```{r}
 
-par(mfrow=c(1,2))
 E1 <- fit$residuals
 plot(E1);# resíduos com zeros na inicialização
 ```
@@ -212,7 +212,7 @@ plot(E)
 qqnorm(E); qqline(E)
 acf(E, lag.max=12*5)
 ```
-Os resíduos em si parecem estar estacionários (primeiro gráfico), já que nenhuma tendência clara é observada, com os valores oscilando em torno do zero. O quáfico qqplor, que ocmpara os quantis mostra que a distrubuição se comporta ocmo normal para a maior parte dos dados, mostrando alguns desvios nas caudas apenas. Finalmente, o gráfico ACF mostra a autocorrelação apenas para o primeiro valor, como se espera, e não apresenta mais valores significativos de autocorrelação a partir daí. Isso indica que o ruido branco está mesmo estacionário. 
+Os resíduos em si parecem estar estacionários (primeiro gráfico), já que nenhuma tendência clara é observada, com os valores oscilando em torno do zero. O quáfico QQplot, que compara os quantis esperados da normal e os observados mostra que a distrubuição se comporta como uma distribuição normal para a maior parte dos dados, mostrando apenas alguns desvios nas caudas, principalmente à direita. Finalmente, o gráfico ACF mostra a autocorrelação apenas para o primeiro valor, como se espera, e não apresenta mais valores significativos de autocorrelação a partir daí. Isso também indica que erros estão de fato se comportando como um ruído branco. 
 
 Para completar essa análise, vamos proceder com alguns testes de hipótese com significância de 5%. O Teste de KPSS para verificar estacionariedade , o teste de Ljung-Box para verificar se há autocorrelação e finalmente o teste de Shapiro-WIlk para verificar se a distribuição é compatível com a normal. Para todos esses testes rejeitaríamos a Hipótese nula se o p-valor encontrado for <0.05.
 
@@ -254,17 +254,23 @@ fit$coef
 
 Inicialmente vamos escrever o processo $w_t$, após a diferenciação:
 
-$w_t = \nabla_s\nabla x_t = \nabla_s(x_t - x_{t-1}) = x_t - x_{t-12} - x_{t-1} - x_{t-11}) , t > 13$
+$w_t = \nabla_s\nabla x_t = \nabla_s(x_t - x_{t-1}) = x_t - x_{t-12} - x_{t-1} - x_{t-11} , t > 13$
 
 Agora o processo $w_t$ é um modelo ARIMA (0,0,2) x (0,0,1)
 
-$w_t =(1-0.7813B^{12})(1 -0.3468B + 0.1799B^2)\epsilon_t $
-\epsilon_t + 0.3468\epsilon_{t-1} + 0.1799\epsilon_{t-1} -0.7813\epsilon_{t-12}$
+$w_t =(1-0.78B^{12})(1 -0.35B + 0.18B^2)\epsilon_t$
+
 
 
 ## e. Extra
 
 Apenas para efeito de comparação, ajustamos o modelo com a função auto-arima. Essa solução apresentou ma pequena diferença do nosso modelo, pois considerou a ordem da parte simples como um MA(3), enquanto nós selecionamos um de ordem 2 para essa parte. Entretanto, como o nosso modelo se ajusta bem, apresentando bom comportamento dos resíduos, escolheríamos ele por ter menos parâmetros. 
+
+
+```{r}
+fit2 = auto.arima(dados)
+fit2
+```
 
 
 ## e. No final do relatório, inclua como um apêndice o código do R que foi utilizado.
