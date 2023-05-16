@@ -1,0 +1,275 @@
+---
+title: "Trabalho Prático 1"
+subtitle: "Séries Temporais - 1/2023" 
+author:
+  - Carolina Musso 18/0047850
+  - Gabriela Carneiro de Almeida 18/0120816
+  - Renan Menezes de Araujo
+format: 
+  pdf:
+    keep-tex: true
+    include-in-header:
+      text: |
+        \usepackage[auth-lg]{authblk}
+execute:
+  echo: false
+  message: false
+  warning: false
+---
+
+# Introdução
+
+```{r}
+pacman::p_load(Mcomp, tidyverse, forecast, flextable)
+```
+
+O pacote Mcomp disponibiliza milhares de séries de competições de previsão de séries temporais. A série apresentada nesse trabalho é a de id 2342, que se refe a uma pesquisa sobre "Manufacturers' shipments, paper and allied products", da comepetição M3. Ela fornece dados estatísticos mensais sobre as condições econômicas no setor de manufatura doméstica (empresas pequenas). A pesquisa mensura a atividade industrial atual e fornece uma indicação das tendências futuras desses tipos de negócios. Essa série mensal apresenta dados observados de Janeiro de 1983 a Agosto de 1992, e um horizonte de previsão de 18, projetando os resultados até Fevereiro de 1994. 
+
+Abaixo podemos observar os dados fornecidos nessa série, bem como seu gráfico, onde o horizonte de previsão aparece em vermelho. 
+```{r}
+data(M3)
+id1 <- 2342 
+#id2 <- 1965
+
+serie <- M3[[id1]] # serie
+serie
+```
+```{r figura}
+#| fig-cap: "Série 2342"
+plot(serie)
+```
+
+
+## a. Decomposição da série temporal via STL (ou MSTL).
+
+```{r}
+# obtendo os dados observados
+
+dados <- serie$x
+
+dados %>% stl(s.window = 7) %>%
+  plot()
+
+
+```
+
+Primeiramente, a função stl() - "Seasonal an trending using Loess"- foi utilizada para decompor a série analisada com o parâmetro s.window (janela sazonal) configurado para 7, como é recomendado por Cleveland et al. (1990). 
+
+
+No caso específico dessa série, ela já não aparentava ter comportamentos sazonais dinâmicos muito expressivos, assim, usar a função stl() com o parâmetro de janela "periodic" (para utilizar a média) ou simplesmente utilizando uma decomposição aditiva clássica da função `decompose()`, a tendência e parâmetro sazonais já são capturados de forma clara.
+
+Entretanto, apesar de tersido observado que a partir dessa janela sazonal o comportamento dos resíduos já melhorava (em contraste com janelas de 3, ou 5), ainda consideramos que havia um pouco de comportamento sazonal restante nos erros. Por esse motivo foi experimentado um outro tamanho de janela de tendência (t.window=7).
+
+```{r}
+dados %>% stl(s.window = 7, t.window =7) %>%
+  plot()
+```
+
+Agora, consideramos que os resíduos estão mais bem comportados em relação à decompsição anterior. Nesse caso, notamos uma pequena dinamicidade nos termos sazonais, sendo que os termos mais recentes tem uma amplitude levemente maior. 
+
+Como pode ser observado no gráfico, há uma tendência crescente clara na série, seguido de um platô a partir de 1990, já observando a série como um todo, antes da decomposição. Uma vez que vamos considerar esses resíduos da última decompsição como compatíveis a um ruido branco, vemos  que o componente de tendência foi bem capturado pela decomposição.
+
+Há também um padrão sazonal anual na série, aque apresenta três picos a cada ano e,  como dito anteriormente, parece apresentar um leve aumento na amplitude quando ajustamos o cálculo para janela de tendência. 
+
+Uma alternativa à função stl() é a função mstl(), que aplica o mesmo método de forma automatizada, ou seja, sem a necessidade de setar previamente o tamanho da janela sazonal. Apesar de ele também automaticamente sugerir um tamanho para t.window(), consideramos que o melhor resultado surgiu quando ele foi configurado o t.window também manualmente para 7, como discutimos anteriormente.   Outra vantagem da função mstl() será que ela função é capaz de identificar multiplas sazonalidades, caso ocorram.
+
+```{r}
+dados %>% mstl(lambda = "auto", t.window=7 ) %>% plot
+
+```
+
+
+O grafico da decomposição MSTL indicou que não há multiplas sazonalidades, estando compatível com as interpretações apresentadas acima. 
+
+
+## b. Escolha um modelo ARIMA adequado de forma manual.
+
+Primeiramente, vamos verificar se há necessidade de difenciações simples ou sazonais. 
+
+```{r}
+dados %>% ndiffs() 
+```
+
+
+```{r}
+
+dif_simples <- dados %>% diff() 
+
+par(mfrow=c(1,3))
+plot(dif_simples )
+acf(dif_simples , lag.max = 12*4)
+pacf(dif_simples , lag.max = 12*4)
+```
+
+
+
+Notamos que após a diferenciação simples ainda há evidência de muita autocorrelação sazonal.
+
+```{r}
+dif_sazonal <- dif_simples %>% nsdiffs()
+
+```
+
+Ou seja, o modelo ainda não é estacionário, e não podemos analisar esses gráficos para encontrar a ordem do modelo. Assim, procede-se com a busca pelo número de diferenciações necessárias. 
+
+Resumindo então, conforme observado na tabela abaixo, a série se torna estacionária com um diferenciação simples e necessita, também, de uma diferenciação sazonal.
+
+```{r}
+tabela <- tibble(
+  var1 = dados %>% ndiffs(),
+  var2 = dados %>% diff() %>% nsdiffs()
+
+)
+
+tabela %>%
+  knitr::kable(
+    format = "latex",
+    align = "c",
+    booktabs = TRUE,
+    longtable = TRUE,
+    linesep = "",
+    col.names = c("Número de diferenciações simples (d)", "Número de diferenciações sazonais (D)"),
+    ) %>%
+  kableExtra::kable_styling(
+      position = "center",
+      latex_options = c("striped", "repeat_header"),
+      stripe_color = "gray!15")
+```
+
+Assim, a séria seguiria um modelo:
+
+\begin{align*}
+  SARIMA (p, 1, q) X (P, 1, Q)
+\end{align*}
+
+
+Aplicando então as diferenciações necessárias, podemos agora prosseguir com a análise dos gráficos ACF e PACF.
+
+```{r}
+m <- dados %>% diff() %>% diff(lag = 12)
+par(mfrow=c(1,3))
+plot(m)
+acf(m, lag.max = 12*4)
+pacf(m, lag.max = 12*4)
+```
+
+
+Olhando primeiramente os termos sazonais, os termos sazoinais parecem ter uma quebra na ordem 1 no ACF e um decaimento mais amortizado no PACF, o que caracterizaria um padrão de médias móveis para o modelo sazonal, ou seja com P=0, 1, Q=1. 
+
+Já a parte simples parece também seguir um padrão mais póximo ao MA (em vez de um AR ou ARMA) entretanto o padrão das quebras e decaimentos não está muito claro.  Por esse motivo, para a busca do melhor modelo vamos fixar, d, D, P e Q mas vamos testar valores para p e q. 
+
+Testamos então combinaç˜pes de p e q variando de 0 a 3. 
+```{r}
+melhor_AICc = Inf
+for(p in 0:3){
+  for(q in 0:3){
+    fit = Arima(m,order=c(p,1,q),seasonal=c(0,1,1))
+    if(fit$aicc < melhor_AICc){
+      melhor_AICc = fit$aicc
+      cat("p =",p,", q =",q,", AICc =", fit$aicc, "\n")
+    }
+  }
+}
+
+```
+
+
+Melhor configuração do modelo seria:
+
+\begin{align*}
+  SARIMA (0, 1, 2) X (0, 1, 1)
+\end{align*}
+
+que apresentou o menor AIC corrigido, de 1144,458.
+
+Procedemos então com o ajuste do modelo selecionado para obtenção dos parâmetros.
+
+```{r}
+
+fit = Arima(dados, order = c(0,1,2), seasonal = c(0,1,1))
+fit
+```
+
+## c. Análise de resíduos do modelo selecionado. 
+
+```{r}
+
+par(mfrow=c(1,2))
+E1 <- fit$residuals
+plot(E1);# resíduos com zeros na inicialização
+```
+
+Por ser um modelo que requer diferenciação, nota-se que perdemos as primeiras observações dos resíduos para a inicialização. Assim, vamos analizar os resíduos após a remoção dessa primeira parte de zeros. 
+
+```{r}
+E <- fit$residuals %>% window(start=c(1985,2))
+plot(E);# resíduos sem a inicializaçã
+```
+Agora observemos a análise visual dos resíduos.
+```{r}
+par(mfrow=c(1,3))
+plot(E)
+qqnorm(E); qqline(E)
+acf(E, lag.max=12*5)
+```
+Os resíduos em si parecem estar estacionários (primeiro gráfico), já que nenhuma tendência clara é observada, com os valores oscilando em torno do zero. O quáfico qqplor, que ocmpara os quantis mostra que a distrubuição se comporta ocmo normal para a maior parte dos dados, mostrando alguns desvios nas caudas apenas. Finalmente, o gráfico ACF mostra a autocorrelação apenas para o primeiro valor, como se espera, e não apresenta mais valores significativos de autocorrelação a partir daí. Isso indica que o ruido branco está mesmo estacionário. 
+
+Para completar essa análise, vamos proceder com alguns testes de hipótese com significância de 5%. O Teste de KPSS para verificar estacionariedade , o teste de Ljung-Box para verificar se há autocorrelação e finalmente o teste de Shapiro-WIlk para verificar se a distribuição é compatível com a normal. Para todos esses testes rejeitaríamos a Hipótese nula se o p-valor encontrado for <0.05.
+
+A tabela abaixo mostra os resultados dos testes:
+
+```{r}
+tabela2 <- tibble(
+  estac = tseries::kpss.test(E)$p.value,
+  indep = Box.test(E, lag=15, type = "Ljung-Bo")$p.value,
+  normlt = shapiro.test(E)$p.value
+
+)
+tabela2 %>%
+  knitr::kable(
+    format = "latex",
+    align = "c",
+    booktabs = TRUE,
+    longtable = TRUE,
+    linesep = "",
+    col.names = c("Teste KPSS - estacionariedade", "Teste Box-Ljung - independência", "Teste Shapiro-Wilk - normalidade"),
+    ) %>%
+  kableExtra::kable_styling(
+      position = "center",
+      latex_options = c("striped", "repeat_header"),
+      stripe_color = "gray!15")
+```
+
+O modelo ajustado cumpre os pré-requisitos de estacionariedade, independencia e normalidade, indicando que é um moledo que pode explicar a série.
+
+
+## d. Apresente a equação do modelo selecionado.
+
+-  Utilize a estimava dos parâmetros. Exemplo: o modelo selecionado é um SARIMA (0,1,2)(0,1,1) definido como
+
+
+```{r}
+fit$coef
+```
+
+Inicialmente vamos escrever o processo $w_t$, após a diferenciação:
+
+$w_t = \nabla_s\nabla x_t = \nabla_s(x_t - x_{t-1}) = x_t - x_{t-12} - x_{t-1} - x_{t-11}) , t > 13$
+
+Agora o processo $w_t$ é um modelo ARIMA (0,0,2) x (0,0,1)
+
+$w_t =(1-0.7813B^{12})(1 -0.3468B + 0.1799B^2)\epsilon_t $
+\epsilon_t + 0.3468\epsilon_{t-1} + 0.1799\epsilon_{t-1} -0.7813\epsilon_{t-12}$
+
+
+## e. Extra
+
+Apenas para efeito de comparação, ajustamos o modelo com a função auto-arima. Essa solução apresentou ma pequena diferença do nosso modelo, pois considerou a ordem da parte simples como um MA(3), enquanto nós selecionamos um de ordem 2 para essa parte. Entretanto, como o nosso modelo se ajusta bem, apresentando bom comportamento dos resíduos, escolheríamos ele por ter menos parâmetros. 
+
+
+## e. No final do relatório, inclua como um apêndice o código do R que foi utilizado.
+
+```{r}
+
+```
+

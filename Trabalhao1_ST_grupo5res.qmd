@@ -67,12 +67,11 @@ Entretanto, apesar de tersido observado que a partir dessa janela sazonal o comp
 ```{r}
 dados %>% stl(s.window = 7, t.window =7) %>%
   plot()
-
 ```
 
-Agora, consederamos que os resíduos estão mais bem comportados em relação à decompsição anterior. Nesse caso, notamos uma pequena parece haver sim, afinal, uma pequena dinamicidade nos termos sazonais, sendo que os termos mais recentes tem uma aplitude levemente maior. 
+Agora, consideramos que os resíduos estão mais bem comportados em relação à decompsição anterior. Nesse caso, notamos uma pequena dinamicidade nos termos sazonais, sendo que os termos mais recentes tem uma aplitude levemente maior. 
 
-Como pode ser observado no gráfico, há uma tendencia crescente clara na série, seguido de um platô a partir de 1990, já observando a série como um todo. Uma vez que vamos considerar esses resíduos como suficientemente aleatórios, vemos  que o componente de tendência foi bem capturado pela decomposição.
+Como pode ser observado no gráfico, há uma tendencia crescente clara na série, seguido de um platô a partir de 1990, já observando a série como um todo, antes da decomposição. Uma vez que vamos considerar esses resíduos da última decompsição como de um ruido brabco, vemos  que o componente de tendência foi bem capturado pela decomposição.
 
 Há também um padrão sazonal anual na série, aque apresenta três picos a cada ano, e como dito anteriormente, parece apresentar um leve aumento na amplitude quando ajustamos o cálculo para janela de tendência. 
 
@@ -82,15 +81,14 @@ Uma alternativa à função stl() é a função mstl(), que aplica o mesmo méto
 dados %>% mstl(lambda = "auto", t.window=7 ) %>% plot
 
 ```
+
+
 O grafico da decomposição MSTL é bem parecido com o gráfico obtido na decomposição STL, e na decompsição aditiva clássica,  indicando que não há multiplas sazonalidades. 
 
 
 ## b. Escolha um modelo ARIMA adequado de forma manual.
 
-- Série "Manufacturers' shipments, paper and allied products"
-```{r}
-dados %>% plot()
-```
+
 ```{r}
 tabela <- tibble(
   var1 = dados %>% ndiffs(),
@@ -113,7 +111,7 @@ tabela %>%
       stripe_color = "gray!15")
 ```
 
-Conforme observado na tabela acima, a série se torna estacionária com um diferenciação simples e necessita, também, de uma diferenciação sazonal, seguindo um modelo  
+Conforme observado na tabela acima, a série se torna estacionária com um diferenciação simples e necessita, também, de uma diferenciação sazonal, seguindo um modelo: 
 
 \begin{align*}
   SARIMA (p, 1, q) X (P, 1, Q)
@@ -126,11 +124,21 @@ plot(m)
 acf(m, lag.max = 12*4)
 pacf(m, lag.max = 12*4)
 ```
+
+
+Olhando primeiramente os termos sazonais, os termos sazoinais parecem ter uma quebra na ordem 1 e um decaimento mais amortizado no PACF, o que caracterizaria um padrão de médias móveis para o modelo sazonal, ou seja com P=0, 1, Q=1. 
+
+Já a parte simples parece também ter apenas o primerio lag significativo para o ACF, seguido de uma quebra (q=1). Já que o PACF também quebra para zero abrubtamente, já na primeira diferenciação, sugerindo um (p=0).
+
+
+A parte sazonal: quebra no ACF 1, decrescimento amortizado em PACF (0, 1, 1), ou (1, 1, 1)
+Simples: Quebra em um q= 1, descresce abruptamente p=1
+
 ```{r}
 melhor_AICc = Inf
 for(p in 0:3){
   for(q in 0:3){
-    fit = Arima(m,order=c(p,1,q),seasonal=c(1,1,1))
+    fit = Arima(m,order=c(p,1,q),seasonal=c(0,1,1))
     if(fit$aicc < melhor_AICc){
       melhor_AICc = fit$aicc
       cat("p =",p,", q =",q,", AICc =", fit$aicc, "\n")
@@ -139,18 +147,27 @@ for(p in 0:3){
 }
 
 ```
+
+
+
+
 Melhor configuração do modelo seria:
 
 \begin{align*}
-  SARIMA (2, 1, 1) X (1, 1, 1)
+  SARIMA (0, 1, 2) X (0, 1, 1)
 \end{align*}
+
+
+
 
 ```{r}
 fit = Arima(dados, order = c(2,1,1), seasonal = c(1,1,1))
 fit
+
+
+fit = Arima(dados, order = c(0,1,1), seasonal = c(0,1,1))
+fit
 ```
-
-
 
 ## c. Análise de resíduos do modelo selecionado. 
 
